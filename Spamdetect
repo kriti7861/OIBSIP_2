@@ -1,0 +1,67 @@
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+import re
+import string
+
+from sklearn.model_selection import train_test_split
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.naive_bayes import MultinomialNB
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
+
+sns.set(style="whitegrid")
+url = "https://raw.githubusercontent.com/justmarkham/pycon-2016-tutorial/master/data/sms.tsv"
+df = pd.read_csv(url, sep='\t', header=None, names=['label', 'message'])
+df.head()
+
+# Count of spam vs ham
+sns.countplot(data=df, x='label', palette='Set2')
+plt.title("Spam vs Ham Message Count")
+plt.show()
+
+# Add message length
+df['length'] = df['message'].apply(len)
+
+# Length distribution
+plt.figure(figsize=(10,5))
+sns.histplot(data=df, x='length', hue='label', bins=40, kde=True)
+plt.title("Message Length Distribution by Label")
+plt.show()
+def clean_text(text):
+    text = text.lower()
+    text = re.sub(r'\d+', '', text)  # Remove numbers
+    text = re.sub(r'[^\w\s]', '', text)  # Remove punctuation
+    text = text.strip()
+    return text
+
+df['clean_text'] = df['message'].apply(clean_text)
+vectorizer = TfidfVectorizer(stop_words='english')
+X = vectorizer.fit_transform(df['clean_text'])
+y = df['label'].map({'ham': 0, 'spam': 1})  # Encode labels
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=42)
+model = MultinomialNB()
+model.fit(X_train, y_train)
+
+# Predict
+y_pred = model.predict(X_test)
+print("Accuracy:", accuracy_score(y_test, y_pred))
+print("\nClassification Report:\n", classification_report(y_test, y_pred))
+
+# Confusion Matrix
+cm = confusion_matrix(y_test, y_pred)
+
+sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=['Ham', 'Spam'], yticklabels=['Ham', 'Spam'])
+plt.xlabel('Predicted')
+plt.ylabel('Actual')
+plt.title("Confusion Matrix")
+plt.show()
+def predict_message(msg):
+    msg_clean = clean_text(msg)
+    vectorized = vectorizer.transform([msg_clean])
+    prediction = model.predict(vectorized)
+    return "Spam" if prediction[0] == 1 else "Ham"
+
+# Try examples
+print(predict_message("Win $1000 now!!! Click here"))
+print(predict_message("Hi, are we still meeting tomorrow?"))
